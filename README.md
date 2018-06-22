@@ -11,4 +11,5 @@ Here are some results of colorectal cancer segmentation and illustration of othe
 ![Fig.2.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results1.png)
 
 
-I'll get used to Github environment soon, and the code reorganization of Keras version will be completed by June 28th, 2018.
+The Code of PyTorch vesion is released, it's a more general version and is implemented for mandible and masseter segmentation. 
+Code reorganization of Keras version will be completed by June 28th, 2018.
