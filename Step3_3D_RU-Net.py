@@ -183,16 +183,17 @@ class RU_Net(nn.Module):
             for j in range(len(Props)):
                 Area.append(Props[j]['area'])
                 Bbox.append(list(Props[j]['bbox']))
+				OverDesignRange=[1,2,2]
                 for k in range(3):
-                    if Bbox[j][k]-2<0:
+                    if Bbox[j][k]-OverDesignRange[k]<0:
                         Bbox[j][k]=0
                     else:
-                        Bbox[j][k]-=2
+                        Bbox[j][k]-=OverDesignRange[k]
                 for k in range(3,6):
-                    if Bbox[j][k]+2>=Heatmap.shape[k-3]-1:
+                    if Bbox[j][k]+OverDesignRange[k-3]>=Heatmap.shape[k-3]-1:
                         Bbox[j][k]=Heatmap.shape[k-3]-1
                     else:
-                        Bbox[j][k]+=2                
+                        Bbox[j][k]+=OverDesignRange[k-3]                 
             Area=np.array(Area)
             Bbox=np.array(Bbox)
             #print Area
