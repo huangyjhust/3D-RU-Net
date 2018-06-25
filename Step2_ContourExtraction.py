@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Sep 26 10:25:13 2017
-
-@author: Administrator
+@author: HuangyjSJTU
 """
 #This is an illustration of how contour labels for training are prepared.
 #As the training data is not fully released, it's not executable and only for understanding now.

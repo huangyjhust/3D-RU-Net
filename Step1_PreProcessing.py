@@ -1,8 +1,5 @@
-#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jun 20 13:26:15 2018
-
 @author: HuangyjSJTU
 """
 import SimpleITK as sitk
