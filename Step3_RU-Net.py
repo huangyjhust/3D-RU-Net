@@ -21,13 +21,16 @@ from matplotlib import pyplot as pl
 from skimage import filters
 import cv2
 inplace=True
-ClassIndex={0:'Background', 1:'Mandible', 2:'Masserter'}
-NumRoIsTrain={'Background':0,'Mandible':1,'Masserter':2}
-NumRoIsTest={'Background':0,'Mandible':1,'Masserter':2}
-Project='Head'
-Root='/media/customer/Disk1/Head/Code/ProcessedHigh'
-ValQuarter=3
+ClassIndex={0:'Background', 1:'Cancer'}
+NumRoIsTrain={'Background':0,'Cancer':1}
+NumRoIsTest={'Background':0,'Cancer':1}
+ResRates={0:'HighRes',1:'MidRes',2:'LowRes'}
+ToSpacing={'HighRes':[1,1,4],'MidRes':[1.5,1.5,4],'LowRes':[2,2,4]}
+Project='Colon'
+Root='../Data/Normalized/'
+ResRate=0#0,1,2
 GPU='cuda:'+str(ValQuarter%2)
+WeightPath='./'+Project+'Weights/'+Project+ResRates[ResRate]+'Params_'+str(ValQuarter)+'.pkl'
 print 'Using GPU',GPU
 class ResBlock(nn.Module):
     '''(conv => BN => ReLU) * 2'''
@@ -51,21 +54,19 @@ class ResBlock(nn.Module):
         x3 = self.Relu(x2)
         x4 = self.Conv2(x3)
         x5 = self.BN2(x4)
-        x6 = torch.add(x5,x1)
-        x7 = self.Relu(x6)
-        #x6 = self.Relu(x5)
-        #x7 = self.Conv3(x6)
-        #x8 = self.BN3(x7)
-        #x9 = torch.add(x8,x1)
-        #x10 = self.Relu(x9)
+        x6 = self.Relu(x5)
+        x7 = self.Conv3(x6)
+        x8 = self.BN3(x7)
+        x9 = torch.add(x8,x1)
+        x10 = self.Relu(x9)
         
-        return x7#x10
+        return x10
 
 
 class inconv(nn.Module):
     def __init__(self, in_ch, out_ch, inplace):
         super(inconv, self).__init__()
-        self.conv = nn.Conv3d(in_ch, out_ch, (1,3,3), padding=(0,1,1))#ResBlock(in_ch, out_ch, (1,3,3), inplace)
+        self.conv = ResBlock(in_ch, out_ch, (1,3,3), inplace)
         self.BN=nn.BatchNorm3d(out_ch)
         self.Relu=nn.ReLU(inplace=inplace)
     def forward(self, x):
@@ -107,38 +108,62 @@ class up(nn.Module):
         x = self.fuse(x)
         return x
 
-
-class outconv(nn.Module):
+class OutconvG(nn.Module):
     def __init__(self, in_ch, out_ch):
-        super(outconv, self).__init__()
+        super(OutconvG, self).__init__()
         self.conv = nn.Conv3d(in_ch, out_ch, 1)
 
     def forward(self, x):
         x = self.conv(x)
+        return x
+class OutconvR(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super(OutconvR, self).__init__()
+        self.conv = nn.Conv3d(in_ch, out_ch, 1)
+
+    def forward(self, x):
+        x = self.conv(x)
+        return x
+#class OutconvC(nn.Module):
+#    def __init__(self, in_ch, out_ch):
+#        super(OutconvC, self).__init__()
+#        self.conv1 = nn.Conv3d(in_ch, in_ch, (1,3,3))
+#        self.conv2 = nn.Conv3d(in_ch, out_ch, 1)
+#
+#    def forward(self, x):
+#        x = self.conv1(x)
+#        x = self.conv2(x)
+#        return x
+class OutconvC(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super(OutconvC, self).__init__()
+        self.conv = nn.Conv3d(in_ch, in_ch, (1,3,3))
+
+    def forward(self, x):
+        x = self.conv(x)
+
         return x
 class RU_Net(nn.Module):
     def __init__(self, n_channels, n_classes,inplace):
         super(RU_Net, self).__init__()
         self.n_classes=n_classes
         self.inplace=inplace
-        self.inc = inconv(n_channels, 32,inplace)
-        self.down1 = down(32, 64,(1,2,2),inplace)
-        self.down2 = down(64, 128,(2,2,2),inplace)
-        self.down3 = down(128, 256,(2,2,2),inplace)
-        #self.down4 = down(512, 512,inplace)
-        self.LocTop = outconv(256, n_classes)
-        self.up1 = up(256, 128,(2,2,2),(3,3,3),inplace,False)
-        self.up2 = up(128, 64,(2,2,2),(3,3,3),inplace,False)
-        self.up3 = up(64, 32,(1,2,2),(1,3,3),inplace,False)
-        #self.up4 = up(128, 64,inplace)
-        self.SegTop = outconv(32, n_classes)
+        self.Base=48
+        self.inc = inconv(n_channels, self.Base,inplace)
+        self.down1 = down(self.Base, self.Base*2,(1,2,2),inplace)
+        self.down2 = down(self.Base*2, self.Base*4, (2,2,2),inplace)
+        self.LocTop = OutconvG(self.Base*4, n_classes)
+        self.up1 = up(self.Base*4, self.Base*2,(2,2,2),(3,3,3),inplace,False)
+        self.up2 = up(self.Base*2, self.Base,(1,2,2),(1,3,3),inplace,False)
+        self.SegTop1 = OutconvR(self.Base, n_classes)
+        self.SegTop2 = OutconvG(self.Base, n_classes)
     def forward_RoI_Loc(self, x,y):
-        y= F.max_pool3d(y,kernel_size=(4,8,8),stride=(4,8,8))
+        y= F.max_pool3d(y,kernel_size=(2,4,4),stride=(2,4,4))
         x1 = self.inc(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        LocOut=self.LocTop(x4)
+        #x4 = self.down3(x3)
+        LocOut=self.LocTop(x3)
         LocOut=F.softmax(LocOut)
         return [LocOut,y]
 
@@ -160,7 +185,17 @@ class RU_Net(nn.Module):
             Bbox=[]
             for j in range(len(Props)):
                 Area.append(Props[j]['area'])
-                Bbox.append(Props[j]['bbox'])
+                Bbox.append(list(Props[j]['bbox']))
+                for k in range(3):
+                    if Bbox[j][k]-2<0:
+                        Bbox[j][k]=0
+                    else:
+                        Bbox[j][k]-=2
+                for k in range(3,6):
+                    if Bbox[j][k]+2>=Heatmap.shape[k-3]-1:
+                        Bbox[j][k]=Heatmap.shape[k-3]-1
+                    else:
+                        Bbox[j][k]+=2                
             Area=np.array(Area)
             Bbox=np.array(Bbox)
             #print Area
@@ -204,17 +239,18 @@ class RU_Net(nn.Module):
         return RoIs
             
         
-    def train_forward(self, x, y):
+    def train_forward(self, x, y_region, y_contour):
         x1 = self.inc(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        LocOut=self.LocTop(x4)
+        LocOut=self.LocTop(x3)
         LocOut=F.softmax(LocOut)
         RoIs=self.Localization(LocOut,Train=True)        
         #print len(RoIs)
-        Pout=[]
-        Yout=[]
+        P_Region=[]
+        P_Contour=[]
+        Y_Region=[]
+        Y_Contour=[]
         for i in range(len(RoIs)):
             Zstart=RoIs[i][0]
             Ystart=RoIs[i][1]
@@ -223,33 +259,37 @@ class RU_Net(nn.Module):
             Yend=RoIs[i][4]
             Xend=RoIs[i][5]
             #RoI Cropping Layer
-            x4_RoI=x4[:,:,Zstart:Zend,Ystart:Yend,Xstart:Xend]
-            x3_RoI=x3[:,:,Zstart*2:Zend*2,Ystart*2:Yend*2,Xstart*2:Xend*2]
-            x2_RoI=x2[:,:,Zstart*4:Zend*4,Ystart*4:Yend*4,Xstart*4:Xend*4]
-            x1_RoI=x1[:,:,Zstart*4:Zend*4,Ystart*8:Yend*8,Xstart*8:Xend*8]
+            x3_RoI=x3[:,:,Zstart:Zend,Ystart:Yend,Xstart:Xend]
+            x2_RoI=x2[:,:,Zstart*2:Zend*2,Ystart*2:Yend*2,Xstart*2:Xend*2]
+            x1_RoI=x1[:,:,Zstart*2:Zend*2,Ystart*4:Yend*4,Xstart*4:Xend*4]
             
-            y_RoI=y[:,:,Zstart*4:Zend*4,Ystart*8:Yend*8,Xstart*8:Xend*8]
-            p = self.up1(x4_RoI, x3_RoI)
-            p = self.up2(p, x2_RoI)
-            p = self.up3(p, x1_RoI)
-            p = self.SegTop(p)
-            p = F.sigmoid(p)
+            y_region_RoI=y_region[:,:,Zstart*2:Zend*2,Ystart*4:Yend*4,Xstart*4:Xend*4]
+            y_contour_RoI=y_contour[:,:,Zstart*2:Zend*2,Ystart*4:Yend*4,Xstart*4:Xend*4]
+            p = self.up1(x3_RoI, x2_RoI)
+            p = self.up2(p, x1_RoI)
+            p_r = self.SegTop1(p)
+            p_r = F.sigmoid(p_r)
+
+            p_c = self.SegTop2(p)
+            p_c = F.sigmoid(p_c)            
             #p = p.to('cpu').detach()
             #y_RoI = y_RoI.to('cpu').detach()
-            Pout.append(p)
-            Yout.append(y_RoI)
+            P_Region.append(p_r)
+            P_Contour.append(p_c)
+            Y_Region.append(y_region_RoI)
+            Y_Contour.append(y_contour_RoI)
         
-        return Pout,Yout,RoIs
+        return P_Region,P_Contour,Y_Region,Y_Contour,RoIs
     def forward(self, x):
         x1 = self.inc(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        LocOut=self.LocTop(x4)
+        LocOut=self.LocTop(x3)
         LocOut=F.softmax(LocOut)
         RoIs=self.Localization(LocOut,Train=False)        
         
-        Pout=[]
+        P_Region=[]
+        P_Contour=[]
         for i in range(len(RoIs)):
             Zstart=RoIs[i][0]
             Ystart=RoIs[i][1]
@@ -258,30 +298,24 @@ class RU_Net(nn.Module):
             Yend=RoIs[i][4]
             Xend=RoIs[i][5]
             #RoI Cropping Layer
-            x4_RoI=x4[:,:,Zstart:Zend,Ystart:Yend,Xstart:Xend]
-            x3_RoI=x3[:,:,Zstart*2:Zend*2,Ystart*2:Yend*2,Xstart*2:Xend*2]
-            x2_RoI=x2[:,:,Zstart*4:Zend*4,Ystart*4:Yend*4,Xstart*4:Xend*4]
-            x1_RoI=x1[:,:,Zstart*4:Zend*4,Ystart*8:Yend*8,Xstart*8:Xend*8]
+            x3_RoI=x3[:,:,Zstart:Zend,Ystart:Yend,Xstart:Xend]
+            x2_RoI=x2[:,:,Zstart*2:Zend*2,Ystart*2:Yend*2,Xstart*2:Xend*2]
+            x1_RoI=x1[:,:,Zstart*2:Zend*2,Ystart*4:Yend*4,Xstart*4:Xend*4]
             
-            p = self.up1(x4_RoI, x3_RoI)
-            p = self.up2(p, x2_RoI)
-            p = self.up3(p, x1_RoI)
-            p = self.SegTop(p)
-            p = F.sigmoid(p)
-            p = p.to('cpu').detach().numpy()
-            Pout.append(p)
+            p = self.up1(x3_RoI,x2_RoI)
+            p = self.up2(p, x1_RoI)
+            p_r = self.SegTop1(p)
+            p_r = F.sigmoid(p_r)
+            p_r = p_r.to('cpu').detach().numpy()
+            P_Region.append(p_r)
 
+            p_c = self.SegTop2(p)
+            p_c = F.sigmoid(p_c) 
+            p_c = p_c.to('cpu').detach().numpy()
+            P_Contour.append(p_c)
         
-        return Pout,RoIs
+        return P_Region,P_Contour,RoIs
 
-def DiceLossFunc(y_pred,y_true):
-    overlap=torch.sum(y_pred*y_true)
-    bottom=torch.sum(y_pred)+torch.sum(y_true)
-    return 1-2*overlap/bottom
-def ClassSensitiveDiceLossFunc(y_pred,y_true):
-    overlap=torch.sum(y_pred*y_true)
-    bottom=torch.sum(y_pred)+torch.sum(y_true)
-    return 1-2*overlap/bottom
 def MultiClassDiceLossFunc(y_pred,y_true):
     overlap=torch.zeros([1]).cuda(GPU)
     bottom=torch.zeros([1]).cuda(GPU)
@@ -289,22 +323,17 @@ def MultiClassDiceLossFunc(y_pred,y_true):
         overlap+=torch.sum(y_pred[0,i]*y_true[0,i])
         bottom+=torch.sum(y_pred[0,i])+torch.sum(y_true[0,i])
     return 1-2*overlap/bottom
-
 #def GetMaximumBbox(Image):
     
 def GetImage(Patient):
 
-    Image1=sitk.ReadImage(Root+'/'+Patient+'ImgManWin.mhd')
-    Image1=sitk.GetArrayFromImage(Image1)
-    Shape=Image1.shape
-    Image2=sitk.ReadImage(Root+'/'+Patient+'ImgMasWin.mhd')
-    Image2=sitk.GetArrayFromImage(Image2)
-
+    ImageInput=sitk.ReadImage(Root+'/'+Patient+'/'+ResRates[ResRate]+'/'+'Image.mhd')
+    ImageInput=sitk.GetArrayFromImage(ImageInput)
+    Shape=ImageInput.shape
     #Maximum Bbox
-
-    otsu=filters.threshold_otsu(Image2[Image2.shape[0]/2])
-    Seg=np.zeros(Image2.shape)
-    Seg[Image2>=otsu]=255
+    otsu=filters.threshold_otsu(ImageInput[ImageInput.shape[0]/2])
+    Seg=np.zeros(ImageInput.shape)
+    Seg[ImageInput>=otsu]=255
     Seg=Seg.astype(np.int)
     ConnectMap=label(Seg, connectivity= 2)
     Props = regionprops(ConnectMap)
@@ -323,98 +352,90 @@ def GetImage(Patient):
     Bbox=Bbox[::-1,:]
     MaximumBbox=Bbox[0]            
             
-    Image=np.zeros([1,2,Image1.shape[0],Image1.shape[1],Image1.shape[2]])
-    Image[0,0]=Image1
-    Image[0,1]=Image2
+    Image=np.zeros([1,1,ImageInput.shape[0],ImageInput.shape[1],ImageInput.shape[2]])
+    Image[0,0]=ImageInput
     Image=Image.astype(np.float)/255
     Image=Image[:,:,MaximumBbox[0]:MaximumBbox[3],MaximumBbox[1]:MaximumBbox[4],MaximumBbox[2]:MaximumBbox[5]]
     Image=torch.from_numpy(Image)
     Image=Image.float()
     Image = Image.to(device=GPU)
 
-    Label1=sitk.ReadImage(Root+'/'+Patient+'Mandible.mhd')
-    Direction=Label1.GetDirection()
-    Origin=Label1.GetOrigin()
-    Spacing=Label1.GetSpacing()
-    Size=Label1.GetSize()
-    NewSpacing=np.array(Spacing)*np.array([8,8,4])
-    NewSize=np.array(Size)/np.array([8,8,4])
-    Resample = sitk.ResampleImageFilter()
-    Resample.SetOutputDirection(Direction)
-    Resample.SetOutputOrigin(Origin)
-    Resample.SetSize(NewSize)
-    Resample.SetInterpolator(sitk.sitkNearestNeighbor)
-    Resample.SetOutputSpacing(NewSpacing)
-    Label1D = Resample.Execute(Label1)
-    Label1D = sitk.GetArrayFromImage(Label1D)
-
+    Label1=sitk.ReadImage(Root+'/'+Patient+'/'+ResRates[ResRate]+'/'+'Label.mhd')
     Label1=sitk.GetArrayFromImage(Label1)
-    Label2=sitk.ReadImage(Root+'/'+Patient+'Masseter.mhd')
+    Label2=sitk.ReadImage(Root+'/'+Patient+'/'+ResRates[ResRate]+'/'+'Contour.mhd')
     Label2=sitk.GetArrayFromImage(Label2)
     
-    Label=np.zeros([1,3,Image1.shape[0],Image1.shape[1],Image1.shape[2]])
-    Label[0,1]=Label1
-    Label[0,2]=Label2
-    Label[0,0]=1-np.maximum(Label1,Label2)
+    LabelRegion=np.zeros([1,2,ImageInput.shape[0],ImageInput.shape[1],ImageInput.shape[2]])
+    LabelRegion[0,1]=Label1
+    LabelRegion[0,0]=1-Label1
 
-    Label=Label[:,:,MaximumBbox[0]:MaximumBbox[3],MaximumBbox[1]:MaximumBbox[4],MaximumBbox[2]:MaximumBbox[5]]
-    Label=torch.from_numpy(Label)
-    Label=Label.float()
-    Label=Label.to(device=GPU)
-    return Image,Label,Shape,MaximumBbox
+    LabelContour=np.zeros([1,2,ImageInput.shape[0],ImageInput.shape[1],ImageInput.shape[2]])
+    LabelContour[0,1]=Label2
+    LabelContour[0,0]=1-Label2
+    
+    LabelRegion=LabelRegion[:,:,MaximumBbox[0]:MaximumBbox[3],MaximumBbox[1]:MaximumBbox[4],MaximumBbox[2]:MaximumBbox[5]]
+    LabelRegion=torch.from_numpy(LabelRegion)
+    LabelRegion=LabelRegion.float()
+    LabelRegion=LabelRegion.to(device=GPU)
+    
+    LabelContour=LabelContour[:,:,MaximumBbox[0]:MaximumBbox[3],MaximumBbox[1]:MaximumBbox[4],MaximumBbox[2]:MaximumBbox[5]]
+    LabelContour=torch.from_numpy(LabelContour)
+    LabelContour=LabelContour.float()
+    LabelContour=LabelContour.to(device=GPU)
+    return Image,LabelRegion,LabelContour,Shape,MaximumBbox
 
 def Predict(Patient):
-    Image,Label,Shape,MaximumBbox=GetImage(Patient)
-    Label=Label.to('cpu').detach().numpy()
+    Image,LabelRegion,LabelContour,Shape,MaximumBbox=GetImage('Val/'+Patient)
+    Label=LabelRegion.to('cpu').detach().numpy()
     time1=time.time()
     PredSeg=Model.forward(Image)
     time2=time.time()
     print 'time used:',time2-time1
     
-    Output=np.zeros(Label.shape)
-    W_Output=np.zeros(Label.shape)+0.001
-    RoIs=PredSeg[1]
+    RegionOutput=np.zeros(Label.shape)
+    RegionWeight=np.zeros(Label.shape)+0.001
+    RoIs=PredSeg[2]
     for i in range(len(PredSeg[0])):
-        Coord=RoIs[i]*np.array([4,8,8,4,8,8])
+        Coord=RoIs[i]*np.array([2,4,4,2,4,4])
         Weight=np.ones(np.asarray(PredSeg[0][i][0].shape))
-        Output[0,:,Coord[0]:Coord[3],Coord[1]:Coord[4],Coord[2]:Coord[5]]+=PredSeg[0][i][0]#.to('cpu').detach().numpy()
-        W_Output[0,:,Coord[0]:Coord[3],Coord[1]:Coord[4],Coord[2]:Coord[5]]+=Weight
-    Output/=W_Output
-    Output1=(Output[0,1]*255).astype(np.uint8)
-    Output2=(Output[0,2]*255).astype(np.uint8)
+        RegionOutput[0,:,Coord[0]:Coord[3],Coord[1]:Coord[4],Coord[2]:Coord[5]]+=PredSeg[0][i][0]#.to('cpu').detach().numpy()
+        RegionWeight[0,:,Coord[0]:Coord[3],Coord[1]:Coord[4],Coord[2]:Coord[5]]+=Weight
+    RegionOutput/=RegionWeight
+
+    ContourOutput=np.zeros(Label.shape)
+    ContourWeight=np.zeros(Label.shape)+0.001
+    RoIs=PredSeg[2]
+    for i in range(len(PredSeg[0])):
+        Coord=RoIs[i]*np.array([2,4,4,2,4,4])
+        Weight=np.ones(np.asarray(PredSeg[0][i][0].shape))
+        ContourOutput[0,:,Coord[0]:Coord[3],Coord[1]:Coord[4],Coord[2]:Coord[5]]+=PredSeg[1][i][0]#.to('cpu').detach().numpy()
+        ContourWeight[0,:,Coord[0]:Coord[3],Coord[1]:Coord[4],Coord[2]:Coord[5]]+=Weight
+    ContourOutput/=ContourWeight
     
     OutputWhole1=np.zeros(Shape,dtype=np.uint8)
-    OutputWhole=np.zeros(Shape,dtype=np.uint8)
-    OutputWhole1[MaximumBbox[0]:MaximumBbox[3],MaximumBbox[1]:MaximumBbox[4],MaximumBbox[2]:MaximumBbox[5]]=Output1
     OutputWhole2=np.zeros(Shape,dtype=np.uint8)
-    OutputWhole2[MaximumBbox[0]:MaximumBbox[3],MaximumBbox[1]:MaximumBbox[4],MaximumBbox[2]:MaximumBbox[5]]=Output2
-    OutputWhole1[OutputWhole1>=128]=255
-    OutputWhole1[OutputWhole1<128]=0
-    OutputWhole2[OutputWhole2>=128]=255
-    OutputWhole2[OutputWhole2<128]=0
-    #Image1=sitk.GetImageFromArray(Image1)
-    #Image2=sitk.GetImageFromArray(Image2)
-    #Image1.SetSpacing([1.0,1.0,2.0])
-    #Image2.SetSpacing([1.0,1.0,2.0])
-    #sitk.WriteImage(Image1,'./Image1.mhd')
-    #sitk.WriteImage(Image2,'./Image2.mhd')
+    OutputWhole=np.zeros(Shape,dtype=np.uint8)
+    OutputWhole1[MaximumBbox[0]:MaximumBbox[3],MaximumBbox[1]:MaximumBbox[4],MaximumBbox[2]:MaximumBbox[5]]=(RegionOutput[0,1]*255).astype(np.uint8)
+    OutputWhole2[MaximumBbox[0]:MaximumBbox[3],MaximumBbox[1]:MaximumBbox[4],MaximumBbox[2]:MaximumBbox[5]]=(ContourOutput[0,1]*255).astype(np.uint8)
+
     OutputWhole[OutputWhole1>=128]=1
-    OutputWhole[OutputWhole2>=128]=2
-    OutputWhole1/=255
-    OutputWhole2/=255
-    Loss=2*np.sum(Output[0,1]*Label[0,1])/(np.sum(Output[0,1])+np.sum(Label[0,1]))+2*np.sum(Output[0,2]*Label[0,2])/(np.sum(Output[0,2])+np.sum(Label[0,2]))
-    Loss/=2
-    Loss=1-Loss
-    OutputWhole1=sitk.GetImageFromArray(OutputWhole1)
-    OutputWhole2=sitk.GetImageFromArray(OutputWhole2)
-    OutputWhole1.SetSpacing([1.0,1.0,2.0])
-    OutputWhole2.SetSpacing([1.0,1.0,2.0])
+    OutputWhole[OutputWhole1<128]=0
     
+    Loss=1-2*np.sum(RegionOutput[0,1]*Label[0,1])/(np.sum(RegionOutput[0,1])+np.sum(Label[0,1]))
+    OutputWhole1=sitk.GetImageFromArray(OutputWhole1)
+    OutputWhole1.SetSpacing(ToSpacing[ResRates[ResRate]])
+    
+    OutputWhole2=sitk.GetImageFromArray(OutputWhole2)
+    OutputWhole2.SetSpacing(ToSpacing[ResRates[ResRate]])
     
     for Rid in range(len(RoIs)):
         color=(Rid+1,Rid+1,Rid+1)
         
-        Coord=RoIs[Rid]*np.array([4,8,8,4,8,8])+np.array([MaximumBbox[0],MaximumBbox[1],MaximumBbox[2],MaximumBbox[0],MaximumBbox[1],MaximumBbox[2]])
+        Coord=RoIs[Rid]*np.array([2,4,4,2,4,4])+np.array([MaximumBbox[0],MaximumBbox[1],MaximumBbox[2],MaximumBbox[0],MaximumBbox[1],MaximumBbox[2]])
+        for protect in range(3):
+            if Coord[protect+3]>=OutputWhole.shape[protect+0]:
+                Coord[protect+3]=OutputWhole.shape[protect+0]-1
+
         
         Rgb=np.zeros([OutputWhole.shape[1],OutputWhole.shape[2],3],dtype=np.uint8)
         Rgb[:,:,0]=OutputWhole[Coord[0]]
@@ -438,88 +459,98 @@ def Predict(Patient):
         #    OutputWhole[z]=cv2.rectangle(Rgb,(Coord[2],Coord[1]),(Coord[5],Coord[4]),color=(3,3,3))[:,:,0]
             
     OutputWhole=sitk.GetImageFromArray(OutputWhole)
-    OutputWhole.SetSpacing([1.0,1.0,2.0])
-    sitk.WriteImage(OutputWhole,'/Data'+Project+'/'+Patient+'Pred.mhd')
-    sitk.WriteImage(OutputWhole1,'/Data'+Project+'/'+Patient+'Pred1.mhd')
-    sitk.WriteImage(OutputWhole2,'/Data'+Project+'/'+Patient+'Pred2.mhd')
+    OutputWhole.SetSpacing(ToSpacing[ResRates[ResRate]])
+    if os.path.exists('./Output'+Project+'/'+Patient)==False:
+        os.mkdir('./Output'+Project+'/'+Patient)
+    sitk.WriteImage(OutputWhole,'./Output'+Project+'/'+Patient+'/'+ResRates[ResRate]+'/Pred.mhd')
+    sitk.WriteImage(OutputWhole1,'./Output'+Project+'/'+Patient+'/'+ResRates[ResRate]+'/PredRegion.mhd')
+    sitk.WriteImage(OutputWhole2,'./Output'+Project+'/'+Patient+'/'+ResRates[ResRate]+'/PredContour.mhd')
     return Loss
-Patient='1'
+
 lr=0.0001
-Model=RU_Net(n_channels=2,n_classes=3,inplace=inplace)
+Model=RU_Net(n_channels=1,n_classes=len(ClassIndex),inplace=inplace)
 Model=Model.to(GPU)
 optimizer = optim.Adam(Model.parameters(),lr=lr)#, momentum=0.9, weight_decay=0.0005)
 
-
-PatientNames_pre=os.listdir(Root)
-PatientNames=[]
-for i in range(len(PatientNames_pre)):
-    if PatientNames_pre[i].endswith('ImgManWin.mhd'):
-        PatientNames.append(PatientNames_pre[i][0:-13])
-PatientNames=sorted(PatientNames)
+TrainPatient=os.listdir(Root+'Train/')
+TrainPatient=sorted(TrainPatient)
+ValPatient=os.listdir(Root+'Val/')
+ValPatient=sorted(ValPatient)
 print PatientNames
-NumVal = len(PatientNames)//4
-NumTrain=len(PatientNames)-NumVal
-ValPatient=PatientNames[ValQuarter*NumVal:(ValQuarter+1)*NumVal:]
-TrainPatient1=PatientNames[0:ValQuarter*NumVal]
-TrainPatient2=PatientNames[(ValQuarter+1)*NumVal:]
-TrainPatient=TrainPatient1+TrainPatient2
-print TrainPatient
+NumVal = len(ValPatient)
+NumTrain=len(TrainPatient)
+#print TrainPatient
+print ValPatient
 Load=True
 try:
-    Model.load_state_dict(torch.load('./'+Project+'Weights/'+Project+'Params_'+str(ValQuarter)+'.pkl'))
+    Model.load_state_dict(torch.load(WeightPath))
 except:
 #Initialization
-    for epoch in range(5):
+    for epoch in range(20):
         for iteration in range(NumTrain):
             Patient=TrainPatient[random.randint(0,NumTrain-1)]
-            Image,Label,Shape,MaximumBbox=GetImage(Patient)
-            PredRoI=Model.forward_RoI_Loc(Image,Label)
+            Image,LabelRegion,LabelContour,Shape,MaximumBbox=GetImage('Train/'+Patient)
+            PredRoI=Model.forward_RoI_Loc(Image,LabelRegion)
             optimizer.zero_grad()
             loss=MultiClassDiceLossFunc(PredRoI[0],PredRoI[1])
             loss.backward()
             optimizer.step()
             print loss
-torch.save(Model.state_dict(), './'+Project+'Weights/'+Project+'Params_'+str(ValQuarter)+'.pkl')
+torch.save(Model.state_dict(), WeightPath)
 #co-training
 Lowest=1
-for epoch in range(10):
+for epoch in range(30):
     for iteration in range(NumTrain):
         Patient=TrainPatient[random.randint(0,NumTrain-1)]
-        if Patient=='41' or Patient=='9' or Patient=='16':
-            continue
-        Image,Label,Shape,MaximumBbox=GetImage(Patient)
+        Image,LabelRegion,LabelContour,Shape,MaximumBbox=GetImage('Train/'+Patient)
+        Label=LabelRegion
         PredRoI=Model.forward_RoI_Loc(Image,Label)
         optimizer.zero_grad()
-        loss=MultiClassDiceLossFunc(PredRoI[0],PredRoI[1])
-        loss.backward()
+        LossG=MultiClassDiceLossFunc(PredRoI[0],PredRoI[1])
+        LossG.backward()
         optimizer.step()
         #print 'global loss=',loss
-        PredSeg=Model.train_forward(Image,Label)
-        loss=torch.zeros([1]).cuda(GPU)
+        PredSeg=Model.train_forward(Image,LabelRegion,LabelContour)
+        LossR=torch.zeros([1]).cuda(GPU)
+
+        for i in range(len(PredSeg[0])):
+            LossR+=MultiClassDiceLossFunc(PredSeg[0][i],PredSeg[2][i])
+        LossR/=len(PredSeg[0])
+        
+        LossC=torch.zeros([1]).cuda(GPU)
         #loss=torch
         for i in range(len(PredSeg[0])):
-            loss+=MultiClassDiceLossFunc(PredSeg[0][i],PredSeg[1][i])
-        loss/=len(PredSeg[0])
-        loss.backward()
+            LossC+=MultiClassDiceLossFunc(PredSeg[1][i],PredSeg[3][i])
+        LossC/=len(PredSeg[0])
+        CWeight=0.5
+        LossAll=LossR+CWeight*LossC
+        LossAll.backward()
         optimizer.step()
-        print 'local loss=',loss
+        
+        LossG=LossG.to('cpu').detach().numpy()
+        LossR=LossR.to('cpu').detach().numpy()
+        LossC=LossC.to('cpu').detach().numpy()
+        if LossG>0.5:
+            print 'Hard Patient=',Patient 
+        print 'loss={g=',LossG,',r=',LossR,',c=',LossC,'}'
     Loss=0
     for iteration in range(NumVal):
         PatientVal=ValPatient[iteration]
-        Loss_temp=Predict(PatientVal)
+        Loss_temp=Predict('Val/'+PatientVal)
         Loss+=Loss_temp
         print PatientVal,' Loss=',Loss_temp
     Loss/=NumVal
     if Loss<Lowest:
         print 'Loss improved from ',Lowest,'to ',Loss
-        torch.save(Model.state_dict(), './'+Project+'Weights/'+Project+'Params_'+str(ValQuarter)+'.pkl')
-        print 'saved to ./'+Project+'Weights/'+Project+'Params_'+str(ValQuarter)+'.pkl'
+        torch.save(Model.state_dict(), WeightPath)
+        print 'saved to ',WeightPath
         Lowest=Loss
     else:
         print 'not improved'
     print '\n\nValLoss=',Loss
+    print 'Best Loss=',Lowest
 
-Model.load_state_dict(torch.load('./'+Project+'Weights/'+Project+'Params_'+str(ValQuarter)+'.pkl'))
+Model.load_state_dict(torch.load(WeightPath))
 Loss=0
 for iteration in range(NumVal):
     PatientVal=ValPatient[iteration]
@@ -529,8 +560,8 @@ for iteration in range(NumVal):
 Loss/=NumVal
 if Loss<Lowest:
     print 'Loss improved from ',Lowest,'to ',Loss
-    torch.save(Model.state_dict(), './'+Project+'Weights/'+Project+'Params_'+str(ValQuarter)+'.pkl')
-    print 'saved to ./'+Project+'Weights/'+Project+'Params_'+str(ValQuarter)+'.pkl'
+    torch.save(Model.state_dict(), WeightPath)
+    print 'saved to ',WeightPath
     Lowest=Loss
 else:
     print 'not improved'
