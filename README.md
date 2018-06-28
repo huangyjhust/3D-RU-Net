@@ -10,4 +10,4 @@ Here are some results of colorectal cancer segmentation, which is the case of th
 ![Fig.1.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results2.png)
 ![Fig.2.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results1.png)
 
-The code is now released. Weights and a few samples will be uploaded by June 28th, 2018.
+The code along with weights and a test fold are currently released. 
