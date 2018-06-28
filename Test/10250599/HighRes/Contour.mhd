@@ -1,0 +1,13 @@
+ObjectType = Image
+NDims = 3
+BinaryData = True
+BinaryDataByteOrderMSB = False
+CompressedData = False
+TransformMatrix = 0.999996 -0.00046038 0.00263902 0.000574 0.999066 -0.043216 -0.00261666 0.0432173 0.999062
+Offset = -117.628 -85.79 -23.7055
+CenterOfRotation = 0 0 0
+AnatomicalOrientation = RAI
+ElementSpacing = 1 1 4
+DimSize = 240 240 41
+ElementType = MET_UCHAR
+ElementDataFile = Contour.raw

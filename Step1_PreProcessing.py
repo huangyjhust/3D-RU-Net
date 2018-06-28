@@ -24,7 +24,6 @@ ToSpacing={'HighRes':[1,1,4],'MidRes':[1.5,1.5,4],'LowRes':[2,2,4]}
 
 def ReadImageAndLabel(CasePath,inverted=False):
     #Reading Images
-    #Image=sitk.ReadImage(CasePath+'Image.mhd')
     Reader = sitk.ImageSeriesReader()
     name=findfiles(CasePath+'img/','*.dcm')
     for i in range(len(name)):
@@ -35,9 +34,6 @@ def ReadImageAndLabel(CasePath,inverted=False):
         #print name[i],'\n'
         name[i]=CasePath+'img/'+str(name[i])+'.dcm'
  
-    #print name
-    #Sometimes labels are inverted along Z axis and should be rectified in this dataset
-    #name=name[::-1]
     Reader.SetFileNames(name)
     Image = Reader.Execute()
     Spacing=Image.GetSpacing()
@@ -119,18 +115,7 @@ def Normalization(Image):
     MaskSave=sitk.BinaryDilate(MaskSave,10)
     MaskSave=sitk.BinaryErode(MaskSave,10)
     Mask=sitk.GetArrayFromImage(MaskSave)
-    #MaskSave=sitk.BinaryFillhole(MaskSave,foregroundValue=1)
-#    Filter=sitk.BinaryFillholeImageFilter()
-#    Filter.SetForegroundValue(1)
-#    Filter.Execute(MaskSave)
 
-#    Filter=sitk.MedianImageFilter()
-#    Filter.SetRadius(3)
-#    Filter.Execute(MaskSave)
-    
-#    for i in range(Mask.shape[0]):
-#        pl.imshow(Mask[i],cmap='gray')
-#        pl.show()
     Avg=np.average(Array[Array_new.shape[0]/2-5:Array_new.shape[0]/2+5],weights=Mask)
     Std=np.sqrt(np.average(abs(Array[Array_new.shape[0]/2-5:Array_new.shape[0]/2+5] - Avg)**2,weights=Mask))
     Array=(Array.astype(np.float32)-Avg)/Std
@@ -147,7 +132,7 @@ if __name__=='__main__':
     PatientNames=os.listdir('../Data/send/')
     PatientNames=sorted(PatientNames)
     for i in range(len(PatientNames)):
-        PatientName=PatientNames[i]#'ForTest'
+        PatientName=PatientNames[i]
         print PatientName
         Image,Label=ReadImageAndLabel('../Data/send/'+PatientName+'/t2-fov/')
         Image,Mask=Normalization(Image)
@@ -160,7 +145,7 @@ if __name__=='__main__':
             sitk.WriteImage(Mask,'../Data/Normalized/'+PatientName+'/'+'BodyMask.mhd')
             sitk.WriteImage(ImagePyramid[i],'../Data/Normalized/'+PatientName+'/'+ResRate[i]+'/'+'Image.mhd')
             sitk.WriteImage(LabelPyramid[i],'../Data/Normalized/'+PatientName+'/'+ResRate[i]+'/'+'Label.mhd')
-    InvertPatientNames=['10262598']#['10156691','10251705','10255379','10259589','10249293','10257949','10258893','10260041','10264476']
+    InvertPatientNames=['10262598']
     for i in range(len(InvertPatientNames)):
         PatientName=InvertPatientNames[i]#'ForTest'
         Image,Label=ReadImageAndLabel('../Data/send/'+PatientName+'/t2-fov/',inverted=True)
