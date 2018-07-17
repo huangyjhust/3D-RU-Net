@@ -7,7 +7,7 @@ The latest version of the 3D RU-Net code is implmented with PyTorch, which elega
 
 Here are some results of colorectal cancer segmentation, which is the case of the paper; and illustrations of another task, mandible and masseter segmentation, showing the scalability of the proposed method.
 
-![Fig.1.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results2.png)
-![Fig.2.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results1.png)
-
+![Fig.1.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results1.png)
+![Fig.2.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results2.png)
+![Fig.2.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results3.png)
 The code along with weights and a test fold are currently released. 
