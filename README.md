@@ -11,7 +11,7 @@ Here are some results of colorectal cancer segmentation, which is the case of th
 ![Fig.1.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results1.png)
 ![Fig.2.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results2.png)
 
-Latest experiment: simultaneously segmenting 14 organs from pelvic CTs in ~0.5s.
+Latest experiment: simultaneously segmenting 14 organs from pelvic CTs in ~0.5s (We train this model with 24 training samples).
 
 ![Fig.2.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results3.png)
 
