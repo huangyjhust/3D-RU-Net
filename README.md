@@ -10,6 +10,9 @@ Here are some results of colorectal cancer segmentation, which is the case of th
 
 ![Fig.1.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results1.png)
 ![Fig.2.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results2.png)
+
 Latest experiment: simultaneously segmenting 14 organs from pelvic CTs in ~0.5s.
+
 ![Fig.2.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results3.png)
+
 The code along with weights and a test fold are currently released. 
