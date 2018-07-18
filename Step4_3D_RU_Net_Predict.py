@@ -87,6 +87,7 @@ if __name__=='__main__':
         ModelPyramid.append(RU_Net(n_channels=1,n_classes=len(ClassIndex),inplace=inplace))
         ModelPyramid[i]=ModelPyramid[i].to(GPU)
         ModelPyramid[i].load_my_state_dict(torch.load('./'+Project+'Weights/'+Project+ResRates[i]+'Params_'+str(ValQuarter)+'.pkl'))
+		ModelPyramid[i].train(mode=True)
     for i in range(NumVal):
         Patient=ValPatient[i]
         ImagePyramid=[]

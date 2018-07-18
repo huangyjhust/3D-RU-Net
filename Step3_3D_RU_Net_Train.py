@@ -502,6 +502,7 @@ if __name__=='__main__':
     lr=0.0001
     Model=RU_Net(n_channels=1,n_classes=len(ClassIndex),inplace=inplace)
     Model=Model.to(GPU)
+	
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, Model.parameters()),lr=lr)
 
     TrainPatient=os.listdir(Root+'Train/')
@@ -532,6 +533,7 @@ if __name__=='__main__':
     #co-training
     Lowest=1
     for epoch in range(60):
+		Model.train(mode=True)
         for iteration in range(NumTrain):
             Patient=TrainPatient[random.randint(0,NumTrain-1)]
             Image,LabelRegion,LabelContour,Shape,MaximumBbox,DownLabel=GetImage(Patient)
@@ -559,6 +561,7 @@ if __name__=='__main__':
                 print 'Hard Patient=',Patient 
             print 'loss={g=',LossG,',r=',LossR,',c=',LossC,'}'
         Loss=0
+		Model.train(mode=False)
         for iteration in range(NumVal):
             PatientVal=ValPatient[iteration]
             Loss_temp=Predict(PatientVal)
