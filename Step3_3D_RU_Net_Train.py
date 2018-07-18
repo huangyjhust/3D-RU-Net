@@ -561,7 +561,7 @@ if __name__=='__main__':
                 print 'Hard Patient=',Patient 
             print 'loss={g=',LossG,',r=',LossR,',c=',LossC,'}'
         Loss=0
-		Model.train(mode=False)
+		Model.eval()
         for iteration in range(NumVal):
             PatientVal=ValPatient[iteration]
             Loss_temp=Predict(PatientVal)
