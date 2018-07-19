@@ -79,17 +79,14 @@ if __name__=='__main__':
     PatientNames=os.listdir(Root)
     PatientNames=sorted(PatientNames)
     print PatientNames
-    NumVal = len(PatientNames)//4
-    ValPatient=PatientNames[ValQuarter*NumVal:(ValQuarter+1)*NumVal:]
-    print ValPatient
     ModelPyramid=[]
     for i in range(len(ResRates)):
         ModelPyramid.append(RU_Net(n_channels=1,n_classes=len(ClassIndex),inplace=inplace))
         ModelPyramid[i]=ModelPyramid[i].to(GPU)
-        ModelPyramid[i].load_my_state_dict(torch.load('./'+Project+'Weights/'+Project+ResRates[i]+'Params_'+str(ValQuarter)+'.pkl'))
+        ModelPyramid[i].load_my_state_dict(torch.load('./'+Project+'Weights/'+Project+ResRates[i]+'Params_1.pkl'))
 		ModelPyramid[i].eval()
-    for i in range(NumVal):
-        Patient=ValPatient[i]
+    for i in range(len(PatientNames)):
+        Patient=PatientNames[i]
         ImagePyramid=[]
         ShapePyramid=[]
         BboxPyramid=[]
