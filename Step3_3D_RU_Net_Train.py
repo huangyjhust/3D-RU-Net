@@ -418,7 +418,8 @@ def Predict(Patient):
     Image,LabelRegion,LabelContour,Shape,MaximumBbox,DownLabel=GetImage(Patient,Train=False)
     Label=LabelRegion.to('cpu').detach().numpy()
     time1=time.time()
-    PredSeg=Model.forward(Image)
+    with torch.no_grad():
+	PredSeg=Model.forward(Image)
     time2=time.time()
     print 'time used:',time2-time1
     
@@ -561,7 +562,7 @@ if __name__=='__main__':
                 print 'Hard Patient=',Patient 
             print 'loss={g=',LossG,',r=',LossR,',c=',LossC,'}'
         Loss=0
-		Model.eval()
+	#Model.eval()
         for iteration in range(NumVal):
             PatientVal=ValPatient[iteration]
             Loss_temp=Predict(PatientVal)
