@@ -84,7 +84,7 @@ if __name__=='__main__':
         ModelPyramid.append(RU_Net(n_channels=1,n_classes=len(ClassIndex),inplace=inplace))
         ModelPyramid[i]=ModelPyramid[i].to(GPU)
         ModelPyramid[i].load_my_state_dict(torch.load('./'+Project+'Weights/'+Project+ResRates[i]+'Params_1.pkl'))
-		ModelPyramid[i].eval()
+	#ModelPyramid[i].eval()
     for i in range(len(PatientNames)):
         Patient=PatientNames[i]
         ImagePyramid=[]
@@ -102,7 +102,8 @@ if __name__=='__main__':
         for j in range(len(ResRates)):
             Shape=ShapePyramid[j]
             MaximumBbox=BboxPyramid[j]
-            Pred=ModelPyramid[j].forward(ImagePyramid[j])
+	    with torch.no_grad():
+	            Pred=ModelPyramid[j].forward(ImagePyramid[j])
             RegionOutput=np.zeros(ImagePyramid[j].shape)
             RegionWeight=np.zeros(ImagePyramid[j].shape)+0.001
             RoIs=Pred[2]
