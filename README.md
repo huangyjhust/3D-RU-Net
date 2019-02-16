@@ -1,8 +1,6 @@
 # 3D RU-Net
 
-Code for the paper entitled "3D RoI-aware U-Net for Accurate and Efficient Colorectal Cancer Segmentation"(https://arxiv.org/abs/1806.10342).
-
-The latest version of the 3D RU-Net code is implmented with PyTorch, which elegantly realizes the essential part of our algorithm and enables in-place computing.
+Code for the paper entitled "3D RoI-aware U-Net for Accurate and Efficient Colorectal Cancer Segmentation"(https://arxiv.org/abs/1806.10342).The latest version with major changes will be updated by 2/19/2019.
 
 ![Fig.0.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/R-UNet.png)
 
