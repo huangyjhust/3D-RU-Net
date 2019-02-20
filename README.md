@@ -2,7 +2,7 @@
 
 Code for the paper entitled "3D RoI-aware U-Net for Accurate and Efficient Colorectal Cancer Segmentation"(https://arxiv.org/abs/1806.10342).
 
-The latest version with major changes will be updated by 2/19/2019.
+The latest codes are now released. Weights and a preprocessed test fold will be uploaded in a few days. 
 
 ![Fig.0.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/R-UNet.png)
 
@@ -14,5 +14,3 @@ Here are some results of colorectal cancer segmentation, which is the case of th
 Latest experiment: simultaneously segmenting 14 organs from pelvic CTs in ~0.5s (We trained this model with 24 training samples).
 
 ![Fig.2.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/Results3.png)
-
-The code along with weights and a test fold are currently released. 
