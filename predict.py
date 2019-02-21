@@ -54,6 +54,7 @@ if __name__=='__main__':
     Models=[RU_Net(opt[0]).to(opt[0].GPU),RU_Net(opt[1]).to(opt[1].GPU),RU_Net(opt[2]).to(opt[2].GPU)]
     for mid,Model in enumerate(Models):
         Model.load_state_dict(torch.load(opt[mid].WEIGHT_PATH))
+        Model.eval()
     Root='./Data/Test/'
     PatientNames=os.listdir(Root)
     PatientNames=sorted(PatientNames)
