@@ -2,7 +2,7 @@
 
 Code for the paper entitled "3D RoI-aware U-Net for Accurate and Efficient Colorectal Cancer Segmentation"(https://arxiv.org/abs/1806.10342).
 
-The latest codes are now released. Weights and a preprocessed test fold will be uploaded in a few days (Due to remote control failures to my workstation in these days, it may take longer).
+The latest codes along with weights and a test fold are now released.
 
 Tips: a recent attempt that transfers training and inferencing to fp16 data format can further enlarge applicable volume sizes.
 
