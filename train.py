@@ -21,7 +21,7 @@ inplace=True
 
 
 STAGE_DILATIONS={'RF64':[1,1,1],'RF88':[1,1,2],'RF112':[1,2,2]}
-TAG='RF112'
+TAG='RF112'# or 'RF64' or 'RF88'
 class Config():
     def __init__(self,TAG):
         self.TAG=TAG
@@ -68,13 +68,17 @@ def Predict(Patient,Subset):
     RegionOutput=np.zeros(Label.shape)
     RegionWeight=np.zeros(Label.shape)+0.001
     RoIs=PredSeg[2]
+    #Apply RoI region predictions to in-body volume container
+    #If overlapped, average
     for i in range(len(PredSeg[0])):
         Coord=RoIs[i]*np.array([2,4,4,2,4,4])
         Weight=np.ones(np.asarray(PredSeg[0][i][0].shape))
         RegionOutput[0,:,Coord[0]:Coord[3],Coord[1]:Coord[4],Coord[2]:Coord[5]]+=PredSeg[0][i][0]#.to('cpu').detach().numpy()
         RegionWeight[0,:,Coord[0]:Coord[3],Coord[1]:Coord[4],Coord[2]:Coord[5]]+=Weight
     RegionOutput/=RegionWeight
-
+    
+    #Apply RoI contour predictions to in-body volume container
+    #If overlapped, average
     ContourOutput=np.zeros(Label.shape)
     ContourWeight=np.zeros(Label.shape)+0.001
     RoIs=PredSeg[2]
@@ -85,12 +89,13 @@ def Predict(Patient,Subset):
         ContourWeight[0,:,Coord[0]:Coord[3],Coord[1]:Coord[4],Coord[2]:Coord[5]]+=Weight
     ContourOutput/=ContourWeight
     
+    #Apply in-body volume container to original volume size
     OutputWhole1=np.zeros(Shape,dtype=np.uint8)
     OutputWhole2=np.zeros(Shape,dtype=np.uint8)
     OutputWhole=np.zeros(Shape,dtype=np.uint8)
     OutputWhole1[MaximumBbox[0]:MaximumBbox[3],MaximumBbox[1]:MaximumBbox[4],MaximumBbox[2]:MaximumBbox[5]]=(RegionOutput[0,1]*255).astype(np.uint8)
     OutputWhole2[MaximumBbox[0]:MaximumBbox[3],MaximumBbox[1]:MaximumBbox[4],MaximumBbox[2]:MaximumBbox[5]]=(ContourOutput[0,1]*255).astype(np.uint8)
-
+    #Save binary predictions
     OutputWhole[OutputWhole1>=128]=1
     OutputWhole[OutputWhole1<128]=0
     RegionOutput[RegionOutput>=0.5]=1
@@ -98,19 +103,19 @@ def Predict(Patient,Subset):
     Loss=1-2*np.sum(RegionOutput[0,1]*Label[0,1])/(np.sum(RegionOutput[0,1])+np.sum(Label[0,1]))
     OutputWhole1=sitk.GetImageFromArray(OutputWhole1)
     OutputWhole1.SetSpacing(opt.TO_SPACING)
-    
     OutputWhole2=sitk.GetImageFromArray(OutputWhole2)
     OutputWhole2.SetSpacing(opt.TO_SPACING)
     
+    #Draw bounding-boxes
     for Rid in range(len(RoIs)):
         color=(Rid+1,Rid+1,Rid+1)
         
         Coord=RoIs[Rid]*np.array([2,4,4,2,4,4])+np.array([MaximumBbox[0],MaximumBbox[1],MaximumBbox[2],MaximumBbox[0],MaximumBbox[1],MaximumBbox[2]])
+        #Out-of-volume protection
         for protect in range(3):
             if Coord[protect+3]>=OutputWhole.shape[protect+0]:
                 Coord[protect+3]=OutputWhole.shape[protect+0]-1
-
-        
+        #Draw rectangles
         Rgb=np.zeros([OutputWhole.shape[1],OutputWhole.shape[2],3],dtype=np.uint8)
         Rgb[:,:,0]=OutputWhole[Coord[0]]
         OutputWhole[Coord[0]]=cv2.rectangle(Rgb,(Coord[2],Coord[1]),(Coord[5],Coord[4]),color=color,thickness=2)[:,:,0]
@@ -128,7 +133,7 @@ def Predict(Patient,Subset):
         OutputWhole[:,Coord[1],:]=cv2.rectangle(Rgb,(Coord[2],Coord[0]),(Coord[5],Coord[3]),color=color,thickness=2)[:,:,0]
         Rgb[:,:,0]=OutputWhole[:,Coord[4],:]
         OutputWhole[:,Coord[4],:]=cv2.rectangle(Rgb,(Coord[2],Coord[0]),(Coord[5],Coord[3]),color=color,thickness=2)[:,:,0]
-            
+    #Save mhds        
     OutputWhole=sitk.GetImageFromArray(OutputWhole)
     OutputWhole.SetSpacing(opt.TO_SPACING)
     if os.path.exists('./Output/'+Patient)==False:
@@ -161,6 +166,7 @@ if __name__=='__main__':
             Model.load_state_dict(torch.load(opt.WEIGHT_PATH))
             print('Weights Loaded!')
         except:
+            #Train Global Image Encoder and RoI locator
             for epoch in range(40):
                 Model.train()
                 for iteration in range(NumTrain):
@@ -179,7 +185,7 @@ if __name__=='__main__':
                 Loss=[]
             torch.save(Model.state_dict(), opt.WEIGHT_PATH)
         
-        #co-training
+        #Jointly train Global Image Encoder, RoI locator and Local Region Decoder
         Lowest=1
         for epoch in range(opt.MAX_EPOCHS):
             print('Epoch ',str(epoch),'/'+str(opt.MAX_EPOCHS))
@@ -199,14 +205,14 @@ if __name__=='__main__':
                 LossG=LossG.to('cpu').detach().numpy()
                 LossR=LossR.to('cpu').detach().numpy()
                 LossC=LossC.to('cpu').detach().numpy()
-                if LossG>0.5:
-                    print('Hard Patient=',Patient) 
                 print('loss={g=',LossG,',r=',LossR,',c=',LossC,'}')
             Loss=[]
             Model.eval()#set_training(False)
-            for iteration in range(NumTest):
-                Patient=TestPatient[iteration]
-                Loss_temp,NumRoIs=Predict(Patient,'Test')
+            
+            #Model selection according to Global Dice
+            for iteration in range(NumVal):
+                Patient=ValPatient[iteration]
+                Loss_temp,NumRoIs=Predict(Patient,'Val')
                 Loss+=[Loss_temp]
                 print(Patient,' Loss=',Loss_temp)
             Loss=np.mean(np.array(Loss))
