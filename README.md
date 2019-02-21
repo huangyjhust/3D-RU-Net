@@ -4,6 +4,8 @@ Code for the paper entitled "3D RoI-aware U-Net for Accurate and Efficient Color
 
 The latest codes are now released. Weights and a preprocessed test fold will be uploaded in a few days (Due to remote control failures to my workstation in these days, it may take longer).
 
+Tips: a recent attempt that transfers training and inferencing to fp16 data format can further enlarge applicable volume sizes.
+
 ![Fig.0.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/R-UNet.png)
 
 Here are some results of colorectal cancer segmentation, which is the case of the paper; and illustrations of another task, mandible and masseter segmentation, showing the scalability of the proposed method.
