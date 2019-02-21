@@ -2,7 +2,7 @@
 
 Code for the paper entitled "3D RoI-aware U-Net for Accurate and Efficient Colorectal Cancer Segmentation"(https://arxiv.org/abs/1806.10342).
 
-The latest codes are now released. Weights and a preprocessed test fold will be uploaded in a few days. 
+The latest codes are now released. Weights and a preprocessed test fold will be uploaded in a few days (Due to remote control failures to my workstation in these days, it may take longer).
 
 ![Fig.0.](https://github.com/huangyjhust/3D-RU-Net/blob/master/Images/R-UNet.png)
 
